@@ -1,11 +1,14 @@
 package logic;
 
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Date;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
 import java.util.regex.Pattern;
+
+import org.apache.commons.lang3.StringUtils;
 
 import twitter4j.GeoLocation;
 import twitter4j.Status;
@@ -150,13 +153,15 @@ public class MovieService extends MovieServiceBase {
 	 */
 	public DBCursor getByGenre(String genreList, int limit) {
 		String[] genres = genreList.split(",");
-		// TODO: test
-		BasicDBObject query = new BasicDBObject();
+		//TODO: done
+		List<BasicDBObject> genQList = new ArrayList<BasicDBObject>();
+
 		for (String genre : genres) {
-			query.append("genre", new BasicDBObject("$in", genre));
+			genre = StringUtils.capitalize(genre.trim().toLowerCase());
+			genQList.add(new BasicDBObject("genre", genre));
 		}
-		DBCursor result = movies.find(query).limit(limit);
-		return result;
+		DBCursor result = movies.find(new BasicDBObject("$and", genQList));
+		return result.limit(limit);
 	}
 
 	/**
@@ -172,8 +177,9 @@ public class MovieService extends MovieServiceBase {
 	 * @return the DBCursor for the query
 	 */
 	public DBCursor searchByPrefix(String titlePrefix, int limit) {
-		//TODO: implement
-		DBObject prefixQuery = null;
+		//TODO: done
+		DBObject prefixQuery = new BasicDBObject("title", 
+				new BasicDBObject("$regex","^" + titlePrefix + ".*").append("$options", "i") );;
 		return movies.find(prefixQuery).limit(limit);
 	}
 
@@ -209,8 +215,8 @@ public class MovieService extends MovieServiceBase {
 	 * @return the DBCursor for the query
 	 */
 	public DBCursor getTweetedMovies() {
-		//TODO: implement
-		DBCursor results = null;
+		//TODO: done
+		DBCursor results = movies.find(new BasicDBObject("tweets", new BasicDBObject("$exists", true)));
 		return results;
 	}
 
@@ -224,8 +230,10 @@ public class MovieService extends MovieServiceBase {
 	 *            the comment to save
 	 */
 	public void saveMovieComment(String id, String comment) {
-		//TODO: implement
-
+		//TODO: done
+		BasicDBObject update = new BasicDBObject("$set", new BasicDBObject().append("comment", comment));
+		BasicDBObject searchQuery = new BasicDBObject().append("_id", id);
+		movies.update(searchQuery, update);
 	}
 
 	/**
@@ -237,9 +245,12 @@ public class MovieService extends MovieServiceBase {
 	 * @return the DBCursor for the query
 	 */
 	public DBCursor getGeotaggedTweets(int limit) {
-		//TODO : implement
-		DBCursor result = null;
-		return result;
+		//TODO: test
+		List<BasicDBObject> qList = new ArrayList<BasicDBObject>();
+		qList.add(new BasicDBObject("coordinates", new BasicDBObject("$exists", true)));
+		qList.add(new BasicDBObject("coordinates", new BasicDBObject("$ne", null)));
+		DBCursor result = tweets.find(new BasicDBObject("$and", qList));
+		return result.limit(limit);
 	}
 
 	/**
@@ -254,10 +265,14 @@ public class MovieService extends MovieServiceBase {
 	 * @return the DBCursor for the query
 	 */
 	public DBCursor getTaggedTweets() {
-		//TODO : implement
-		DBObject projection = null;
-		DBObject query = null;
-		DBObject sort = null;
+		//TODO : test
+		tweets.ensureIndex("coordinates");
+		DBObject projection = new BasicDBObject("text", true)
+				.append("movie", true)
+				.append("user.name", true)
+				.append("coordinates", true);
+		DBObject query = new BasicDBObject("coordinates", new BasicDBObject("$exists", true));
+		DBObject sort = new BasicDBObject("_id", -1);
 		DBCursor results = tweets.find(query, projection).sort(sort);
 		return results;
 	}
@@ -344,9 +359,10 @@ public class MovieService extends MovieServiceBase {
 	 * @return the DBCursor for the query
 	 */
 	public DBCursor getByTweetsKeywordRegex(String keyword, int limit) {
-		//TODO : implement
-		DBCursor result = null;
-		return result;
+		//TODO: done
+		DBObject query = new BasicDBObject("tweets.text", Pattern.compile(".*" + keyword + ".*"));
+		DBCursor result = movies.find(query);
+		return result.limit(limit);
 	}
 
 	/**
@@ -395,9 +411,10 @@ public class MovieService extends MovieServiceBase {
 	 * @return the DBCursor for the query
 	 */
 	public DBCursor getNewestTweets(int limit) {
-		//TODO : implement
-		DBCursor result = null;
-		return result;
+		//TODO: test
+		DBObject sort = new BasicDBObject("_id", -1);
+		DBCursor result = tweets.find().sort(sort);
+		return result.limit(limit);
 	}
 
 	/**
@@ -458,8 +475,11 @@ public class MovieService extends MovieServiceBase {
 	 * @return The retrieved GridFS File
 	 */
 	public GridFSDBFile getFile(String name) {
-		//TODO: implement
-		GridFSDBFile file = null;
+		//TODO: test
+		GridFSDBFile file = fs.findOne(name);
+		if (file == null) {
+			file = fs.findOne("sample.png");
+		}
 		return file;
 	}
 
@@ -476,7 +496,10 @@ public class MovieService extends MovieServiceBase {
 		GridFSInputFile gFile = null;
 		//Remove old versions
 		fs.remove(name);
-		//TODO: implement
+		//TODO: test
+		gFile = fs.createFile(inputStream, name);
+        gFile.setContentType(contentType);
+        gFile.save();
 	}
 
 	// Given Helper Functions:
